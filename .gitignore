@@ -1,0 +1,14 @@
+# Deploy keys – NEVER commit
+deploy-key
+deploy-key.pub
+deploy_key
+deploy_key.pub
+*.key
+*.pem
+# Deploy keys – NEVER commit
+deploy-key
+deploy-key.pub
+deploy_key
+deploy_key.pub
+*.key
+*.pem
