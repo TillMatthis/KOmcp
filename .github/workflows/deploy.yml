@@ -17,8 +17,8 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H vmd43025.contaboserver.net >> ~/.ssh/known_hosts
+          ssh-keyscan -H 167.86.121.109 >> ~/.ssh/known_hosts
 
       - name: Deploy to VPS
         run: |
-          ssh root@vmd43025.contaboserver.net "bash /opt/KOmcp/restart.sh"
+          ssh root@167.86.121.109 "bash /opt/KOmcp/restart.sh"
