@@ -18,9 +18,10 @@ jobs:
           echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H 167.86.121.109 >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          echo "=== DEBUG: Key fingerprint ==="
+          ssh-keygen -l -f ~/.ssh/id_ed25519
 
       - name: Deploy to VPS
-        env:
-          GIT_SSH_COMMAND: "ssh -vvv"
         run: |
-          ssh root@167.86.121.109 "bash /opt/KOmcp/restart.sh"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -v root@167.86.121.109 "echo 'SSH SUCCESS from Actions!'; ls -la /opt/KOmcp/restart.sh"
