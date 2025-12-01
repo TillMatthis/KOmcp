@@ -4,6 +4,9 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { config, isDevelopment } from './config/env';
 import { logger } from './config/logger';
+import { wellKnownRoutes } from './routes/well-known';
+import { authMiddleware, requireScopes } from './middleware/auth';
+import { RequiredScope } from './types/auth';
 
 /**
  * Create and configure Fastify server instance
@@ -87,12 +90,16 @@ export async function buildServer(): Promise<FastifyInstance> {
     },
   });
 
+  // Register routes
+  // Well-known OAuth endpoints (public, no auth required)
+  await server.register(wellKnownRoutes);
+
   // Add custom API version header to all responses
   server.addHook('onSend', async (_request, reply) => {
     reply.header('X-API-Version', '1.0.0');
   });
 
-  // Health check route (basic implementation)
+  // Health check route (public, no auth required)
   server.get('/health', async () => {
     return {
       status: 'healthy',
@@ -101,6 +108,25 @@ export async function buildServer(): Promise<FastifyInstance> {
       version: '1.0.0',
     };
   });
+
+  // Test protected endpoint (requires authentication)
+  // This endpoint demonstrates OAuth middleware usage
+  server.get(
+    '/protected',
+    {
+      preHandler: [authMiddleware, requireScopes([RequiredScope.TOOLS_READ])],
+    },
+    async (request) => {
+      return {
+        message: 'You have successfully authenticated!',
+        user: {
+          userId: request.user!.userId,
+          clientId: request.user!.clientId,
+          scopes: request.user!.scopes,
+        },
+      };
+    }
+  );
 
   // Graceful shutdown handler
   const closeGracefully = async (signal: string): Promise<void> => {
