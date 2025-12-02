@@ -1,0 +1,33 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("KURA_DATABASE_URL")
+  extensions = [pgvector(map: "vector", schema: "public")]
+}
+
+/// Kura notes table with vector embeddings for semantic search
+/// This is a READ-ONLY connection - KOmcp only performs SELECT queries
+model Note {
+  id         String   @id @default(uuid())
+  user_id    String   @map("user_id")
+  title      String
+  content    String   @db.Text
+
+  // Vector embedding for semantic search (1536 dimensions for OpenAI embeddings)
+  // Using Unsupported type as Prisma doesn't have native pgvector support yet
+  embedding  Unsupported("vector(1536)")?
+
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
+
+  @@index([user_id])
+  @@index([embedding], map: "notes_embedding_idx", type: Ivfflat)
+  @@map("notes")
+}
