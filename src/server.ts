@@ -5,6 +5,7 @@ import rateLimit from '@fastify/rate-limit';
 import { config, isDevelopment } from './config/env';
 import { logger } from './config/logger';
 import { wellKnownRoutes } from './routes/well-known';
+import { registerMcpRoutes } from './routes/mcp';
 import { authMiddleware, requireScopes } from './middleware/auth';
 import { RequiredScope } from './types/auth';
 
@@ -93,6 +94,9 @@ export async function buildServer(): Promise<FastifyInstance> {
   // Register routes
   // Well-known OAuth endpoints (public, no auth required)
   await server.register(wellKnownRoutes);
+
+  // MCP protocol endpoints (requires authentication)
+  await registerMcpRoutes(server);
 
   // Add custom API version header to all responses
   server.addHook('onSend', async (_request, reply) => {
