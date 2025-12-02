@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { generateEmbedding, EmbeddingError } from './embeddings';
 import { SearchResponse, SearchParams } from '../types/kura';
 
@@ -6,13 +6,16 @@ import { SearchResponse, SearchParams } from '../types/kura';
  * Custom error for Kura database operations
  */
 export class KuraSearchError extends Error {
+  public code: 'database_error' | 'embedding_error' | 'invalid_params';
+
   constructor(
     message: string,
-    public code: 'database_error' | 'embedding_error' | 'invalid_params',
-    public cause?: unknown
+    code: 'database_error' | 'embedding_error' | 'invalid_params',
+    public override cause?: unknown
   ) {
     super(message);
     this.name = 'KuraSearchError';
+    this.code = code;
   }
 }
 
@@ -30,11 +33,11 @@ export class KuraSearchService {
     this.prisma = new PrismaClient({
       datasources: {
         db: {
-          url: process.env.KURA_DATABASE_URL,
+          url: process.env['KURA_DATABASE_URL'],
         },
       },
       // Log queries in development for debugging
-      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+      log: process.env['NODE_ENV'] === 'development' ? ['query', 'error', 'warn'] : ['error'],
     });
   }
 
@@ -53,8 +56,6 @@ export class KuraSearchService {
    * @throws {KuraSearchError} If search fails
    */
   async searchNotes(userId: string, params: SearchParams): Promise<SearchResponse> {
-    const startTime = Date.now();
-
     // Validate parameters
     const query = params.query?.trim();
     if (!query) {
@@ -133,7 +134,14 @@ export class KuraSearchService {
 
       // Return formatted response
       return {
-        results: results.map((result) => ({
+        results: results.map((result: {
+          id: string;
+          title: string;
+          content: string;
+          created_at: Date;
+          updated_at: Date;
+          similarity: number;
+        }) => ({
           id: result.id,
           title: result.title,
           content: result.content,
@@ -145,11 +153,11 @@ export class KuraSearchService {
         query_embedding_time_ms: embeddingTime,
         search_time_ms: searchTime,
       };
-    } catch (error) {
+    } catch (error: unknown) {
       // Handle Prisma/database errors
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error && typeof error === 'object' && 'code' in error) {
         throw new KuraSearchError(
-          `Database error: ${error.message}`,
+          `Database error: ${error instanceof Error ? error.message : 'Unknown error'}`,
           'database_error',
           error
         );
