@@ -1,8 +1,12 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authMiddleware } from '../middleware/auth';
 import { RequiredScope } from '../types/auth';
-import { SEARCH_NOTES_TOOL } from '../mcp/schemas';
+import { MCP_TOOLS } from '../mcp/schemas';
 import { executeSearchNotes } from '../mcp/tools/search-notes';
+import { executeCreateNote, CreateNoteInput } from '../mcp/tools/create-note';
+import { executeGetNote, GetNoteInput } from '../mcp/tools/get-note';
+import { executeListRecentNotes } from '../mcp/tools/list-recent-notes';
+import { executeDeleteNote, DeleteNoteInput } from '../mcp/tools/delete-note';
 import { SearchNotesInput } from '../types/mcp';
 
 /**
@@ -153,7 +157,7 @@ async function handleToolsList(
   // Return available tools
   return reply.send(
     createSuccessResponse(rpcRequest.id, {
-      tools: [SEARCH_NOTES_TOOL],
+      tools: MCP_TOOLS,
     })
   );
 }
@@ -212,13 +216,33 @@ async function handleToolsCall(
     case 'search_kura_notes':
       return handleSearchKuraNotes(request, reply, rpcRequest, toolArgs);
 
+    case 'create_note':
+      return handleCreateNote(request, reply, rpcRequest, toolArgs);
+
+    case 'get_note':
+      return handleGetNote(request, reply, rpcRequest, toolArgs);
+
+    case 'list_recent_notes':
+      return handleListRecentNotes(request, reply, rpcRequest, toolArgs);
+
+    case 'delete_note':
+      return handleDeleteNote(request, reply, rpcRequest, toolArgs);
+
     default:
       return reply.status(404).send(
         createErrorResponse(
           rpcRequest.id,
           JsonRpcErrorCode.METHOD_NOT_FOUND,
           `Unknown tool: ${name}`,
-          { available_tools: ['search_kura_notes'] }
+          {
+            available_tools: [
+              'search_kura_notes',
+              'create_note',
+              'get_note',
+              'list_recent_notes',
+              'delete_note',
+            ],
+          }
         )
       );
   }
@@ -316,6 +340,273 @@ async function handleSearchKuraNotes(
     request.log.error({ error }, 'Error executing search_kura_notes tool');
 
     // Return error response
+    return reply.status(500).send(
+      createErrorResponse(
+        rpcRequest.id,
+        JsonRpcErrorCode.INTERNAL_ERROR,
+        'Tool execution failed',
+        {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      )
+    );
+  }
+}
+
+/**
+ * Handle create_note tool execution
+ */
+async function handleCreateNote(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  rpcRequest: JsonRpcRequest,
+  toolArgs: any
+): Promise<void> {
+  try {
+    // Validate tool arguments
+    if (!toolArgs || typeof toolArgs !== 'object') {
+      return reply.status(400).send(
+        createErrorResponse(
+          rpcRequest.id,
+          JsonRpcErrorCode.INVALID_PARAMS,
+          'Invalid tool arguments. Expected object.'
+        )
+      );
+    }
+
+    // Validate required content parameter
+    if (!toolArgs.content || typeof toolArgs.content !== 'string') {
+      return reply.status(400).send(
+        createErrorResponse(
+          rpcRequest.id,
+          JsonRpcErrorCode.INVALID_PARAMS,
+          'Missing or invalid "content" parameter'
+        )
+      );
+    }
+
+    // Build create input
+    const createInput: CreateNoteInput = {
+      content: toolArgs.content,
+      title: toolArgs.title,
+      annotation: toolArgs.annotation,
+      tags: toolArgs.tags,
+      contentType: toolArgs.contentType,
+    };
+
+    // Get access token
+    const authHeader = request.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      request.log.error('Access token not found in request');
+      return reply.status(500).send(
+        createErrorResponse(
+          rpcRequest.id,
+          JsonRpcErrorCode.INTERNAL_ERROR,
+          'Internal server error: Access token not found'
+        )
+      );
+    }
+
+    const accessToken = authHeader.substring(7);
+
+    // Execute create note
+    const result = await executeCreateNote(accessToken, createInput);
+
+    // Return tool result
+    return reply.send(createSuccessResponse(rpcRequest.id, result));
+  } catch (error) {
+    request.log.error({ error }, 'Error executing create_note tool');
+    return reply.status(500).send(
+      createErrorResponse(
+        rpcRequest.id,
+        JsonRpcErrorCode.INTERNAL_ERROR,
+        'Tool execution failed',
+        {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      )
+    );
+  }
+}
+
+/**
+ * Handle get_note tool execution
+ */
+async function handleGetNote(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  rpcRequest: JsonRpcRequest,
+  toolArgs: any
+): Promise<void> {
+  try {
+    // Validate tool arguments
+    if (!toolArgs || typeof toolArgs !== 'object') {
+      return reply.status(400).send(
+        createErrorResponse(
+          rpcRequest.id,
+          JsonRpcErrorCode.INVALID_PARAMS,
+          'Invalid tool arguments. Expected object.'
+        )
+      );
+    }
+
+    // Validate required note_id parameter
+    if (!toolArgs.note_id || typeof toolArgs.note_id !== 'string') {
+      return reply.status(400).send(
+        createErrorResponse(
+          rpcRequest.id,
+          JsonRpcErrorCode.INVALID_PARAMS,
+          'Missing or invalid "note_id" parameter'
+        )
+      );
+    }
+
+    // Build get input
+    const getInput: GetNoteInput = {
+      note_id: toolArgs.note_id,
+    };
+
+    // Get access token
+    const authHeader = request.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      request.log.error('Access token not found in request');
+      return reply.status(500).send(
+        createErrorResponse(
+          rpcRequest.id,
+          JsonRpcErrorCode.INTERNAL_ERROR,
+          'Internal server error: Access token not found'
+        )
+      );
+    }
+
+    const accessToken = authHeader.substring(7);
+
+    // Execute get note
+    const result = await executeGetNote(accessToken, getInput);
+
+    // Return tool result
+    return reply.send(createSuccessResponse(rpcRequest.id, result));
+  } catch (error) {
+    request.log.error({ error }, 'Error executing get_note tool');
+    return reply.status(500).send(
+      createErrorResponse(
+        rpcRequest.id,
+        JsonRpcErrorCode.INTERNAL_ERROR,
+        'Tool execution failed',
+        {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      )
+    );
+  }
+}
+
+/**
+ * Handle list_recent_notes tool execution
+ */
+async function handleListRecentNotes(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  rpcRequest: JsonRpcRequest,
+  _toolArgs: any
+): Promise<void> {
+  try {
+    // No arguments needed for list_recent_notes
+
+    // Get access token
+    const authHeader = request.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      request.log.error('Access token not found in request');
+      return reply.status(500).send(
+        createErrorResponse(
+          rpcRequest.id,
+          JsonRpcErrorCode.INTERNAL_ERROR,
+          'Internal server error: Access token not found'
+        )
+      );
+    }
+
+    const accessToken = authHeader.substring(7);
+
+    // Execute list recent notes
+    const result = await executeListRecentNotes(accessToken);
+
+    // Return tool result
+    return reply.send(createSuccessResponse(rpcRequest.id, result));
+  } catch (error) {
+    request.log.error({ error }, 'Error executing list_recent_notes tool');
+    return reply.status(500).send(
+      createErrorResponse(
+        rpcRequest.id,
+        JsonRpcErrorCode.INTERNAL_ERROR,
+        'Tool execution failed',
+        {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      )
+    );
+  }
+}
+
+/**
+ * Handle delete_note tool execution
+ */
+async function handleDeleteNote(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  rpcRequest: JsonRpcRequest,
+  toolArgs: any
+): Promise<void> {
+  try {
+    // Validate tool arguments
+    if (!toolArgs || typeof toolArgs !== 'object') {
+      return reply.status(400).send(
+        createErrorResponse(
+          rpcRequest.id,
+          JsonRpcErrorCode.INVALID_PARAMS,
+          'Invalid tool arguments. Expected object.'
+        )
+      );
+    }
+
+    // Validate required note_id parameter
+    if (!toolArgs.note_id || typeof toolArgs.note_id !== 'string') {
+      return reply.status(400).send(
+        createErrorResponse(
+          rpcRequest.id,
+          JsonRpcErrorCode.INVALID_PARAMS,
+          'Missing or invalid "note_id" parameter'
+        )
+      );
+    }
+
+    // Build delete input
+    const deleteInput: DeleteNoteInput = {
+      note_id: toolArgs.note_id,
+    };
+
+    // Get access token
+    const authHeader = request.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      request.log.error('Access token not found in request');
+      return reply.status(500).send(
+        createErrorResponse(
+          rpcRequest.id,
+          JsonRpcErrorCode.INTERNAL_ERROR,
+          'Internal server error: Access token not found'
+        )
+      );
+    }
+
+    const accessToken = authHeader.substring(7);
+
+    // Execute delete note
+    const result = await executeDeleteNote(accessToken, deleteInput);
+
+    // Return tool result
+    return reply.send(createSuccessResponse(rpcRequest.id, result));
+  } catch (error) {
+    request.log.error({ error }, 'Error executing delete_note tool');
     return reply.status(500).send(
       createErrorResponse(
         rpcRequest.id,

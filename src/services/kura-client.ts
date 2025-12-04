@@ -57,6 +57,57 @@ export interface SearchParams {
 }
 
 /**
+ * Create note parameters
+ */
+export interface CreateNoteParams {
+  content: string;
+  contentType?: string;
+  title?: string;
+  annotation?: string;
+  tags?: string[];
+}
+
+/**
+ * Note content response (for get operations)
+ */
+export interface KuraNoteContent {
+  id: string;
+  content: string;
+  contentType: string;
+  title: string;
+  metadata: {
+    tags?: string[];
+    createdAt?: string;
+    updatedAt?: string;
+    source?: string;
+    annotation?: string;
+  };
+}
+
+/**
+ * Recent notes response
+ */
+export interface KuraRecentNotesResponse {
+  notes: Array<{
+    id: string;
+    title: string;
+    contentType: string;
+    createdAt: string;
+    updatedAt: string;
+    tags?: string[];
+  }>;
+  total: number;
+}
+
+/**
+ * Create note response
+ */
+export interface KuraCreateNoteResponse {
+  id: string;
+  message: string;
+}
+
+/**
  * Custom error for Kura API calls
  */
 export class KuraApiError extends Error {
@@ -183,6 +234,215 @@ export class KuraClient {
 
       throw new KuraApiError(
         `Failed to search Kura: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        undefined,
+        error
+      );
+    }
+  }
+
+  /**
+   * Create a new note
+   *
+   * Calls Kura's /api/capture endpoint to create a new note
+   *
+   * @param accessToken - OAuth access token from KOauth
+   * @param params - Note creation parameters
+   * @returns Created note response with ID
+   * @throws {KuraApiError} If the API call fails
+   */
+  async createNote(
+    accessToken: string,
+    params: CreateNoteParams
+  ): Promise<KuraCreateNoteResponse> {
+    const url = `${this.baseUrl}/api/capture`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'KOmcp/1.0',
+        },
+        body: JSON.stringify({
+          content: params.content,
+          contentType: params.contentType || 'text',
+          title: params.title,
+          annotation: params.annotation,
+          tags: params.tags,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new KuraApiError(
+          `Failed to create note (${response.status}): ${errorText}`,
+          response.status
+        );
+      }
+
+      const data = await response.json();
+      return data as KuraCreateNoteResponse;
+    } catch (error) {
+      if (error instanceof KuraApiError) {
+        throw error;
+      }
+
+      throw new KuraApiError(
+        `Failed to create note: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        undefined,
+        error
+      );
+    }
+  }
+
+  /**
+   * Get a note by ID
+   *
+   * Calls Kura's /api/content/{id} endpoint
+   *
+   * @param accessToken - OAuth access token from KOauth
+   * @param noteId - ID of the note to retrieve
+   * @returns Note content with full details
+   * @throws {KuraApiError} If the API call fails
+   */
+  async getNote(accessToken: string, noteId: string): Promise<KuraNoteContent> {
+    const url = `${this.baseUrl}/api/content/${noteId}`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'KOmcp/1.0',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new KuraApiError(
+            `Note with ID "${noteId}" not found`,
+            404
+          );
+        }
+
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new KuraApiError(
+          `Failed to get note (${response.status}): ${errorText}`,
+          response.status
+        );
+      }
+
+      const data = await response.json();
+      return data as KuraNoteContent;
+    } catch (error) {
+      if (error instanceof KuraApiError) {
+        throw error;
+      }
+
+      throw new KuraApiError(
+        `Failed to get note: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        undefined,
+        error
+      );
+    }
+  }
+
+  /**
+   * List recent notes
+   *
+   * Calls Kura's /api/content/recent endpoint to get the 20 most recent notes
+   *
+   * @param accessToken - OAuth access token from KOauth
+   * @returns List of recent notes
+   * @throws {KuraApiError} If the API call fails
+   */
+  async listRecentNotes(accessToken: string): Promise<KuraRecentNotesResponse> {
+    const url = `${this.baseUrl}/api/content/recent`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'KOmcp/1.0',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new KuraApiError(
+          `Failed to list recent notes (${response.status}): ${errorText}`,
+          response.status
+        );
+      }
+
+      const data = await response.json();
+      return data as KuraRecentNotesResponse;
+    } catch (error) {
+      if (error instanceof KuraApiError) {
+        throw error;
+      }
+
+      throw new KuraApiError(
+        `Failed to list recent notes: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        undefined,
+        error
+      );
+    }
+  }
+
+  /**
+   * Delete a note
+   *
+   * Calls Kura's /api/content/{id} endpoint with DELETE method
+   *
+   * @param accessToken - OAuth access token from KOauth
+   * @param noteId - ID of the note to delete
+   * @returns Success status
+   * @throws {KuraApiError} If the API call fails
+   */
+  async deleteNote(accessToken: string, noteId: string): Promise<{ success: boolean; message: string }> {
+    const url = `${this.baseUrl}/api/content/${noteId}`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'KOmcp/1.0',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new KuraApiError(
+            `Note with ID "${noteId}" not found`,
+            404
+          );
+        }
+
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new KuraApiError(
+          `Failed to delete note (${response.status}): ${errorText}`,
+          response.status
+        );
+      }
+
+      return {
+        success: true,
+        message: `Note ${noteId} deleted successfully`,
+      };
+    } catch (error) {
+      if (error instanceof KuraApiError) {
+        throw error;
+      }
+
+      throw new KuraApiError(
+        `Failed to delete note: ${error instanceof Error ? error.message : 'Unknown error'}`,
         undefined,
         error
       );
