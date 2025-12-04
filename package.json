@@ -17,7 +17,14 @@
     "format:check": "prettier --check \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "docker:build": "docker build -t komcp:latest .",
+    "docker:dev": "docker-compose -f docker-compose.dev.yml up",
+    "docker:dev:build": "docker-compose -f docker-compose.dev.yml up --build",
+    "docker:prod": "docker-compose up -d",
+    "docker:prod:build": "docker-compose up -d --build",
+    "docker:stop": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
   },
   "keywords": [
     "mcp",
@@ -49,6 +56,7 @@
     "fastify": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^3.1.0",
+    "openai": "^6.10.0",
     "pino": "^9.5.0",
     "pino-pretty": "^13.0.0",
     "zod": "^3.23.8"
@@ -67,7 +75,7 @@
     "prettier": "^3.3.3",
     "prisma": "^5.22.0",
     "ts-jest": "^29.2.5",
-    "tsx": "^4.19.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.6.3"
   }
 }

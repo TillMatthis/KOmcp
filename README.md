@@ -156,6 +156,70 @@ Expected response:
 
 ---
 
+## Docker Deployment
+
+### Production Deployment
+
+Build and run with Docker Compose:
+
+```bash
+# Build and start
+npm run docker:prod:build
+
+# Or manually
+docker-compose up -d --build
+
+# View logs
+npm run docker:logs
+
+# Stop
+npm run docker:stop
+```
+
+Server will be available at `http://localhost:3003`
+
+### Development with Docker
+
+Run with hot reload:
+
+```bash
+# Start development container
+npm run docker:dev:build
+
+# View logs
+docker-compose -f docker-compose.dev.yml logs -f
+```
+
+Changes to `src/` will automatically reload the server.
+
+### Docker Environment
+
+Create `.env` file (same as Quick Start step 3) before running Docker.
+
+The Docker container:
+- Runs as non-root user (nodejs:1001)
+- Uses multi-stage build for minimal image size
+- Includes health checks
+- Resource limits: 512MB RAM, 1 CPU
+- Automatic restarts
+
+### Building for VPS Deployment
+
+```bash
+# Build production image
+docker build -t komcp:latest .
+
+# Tag for registry
+docker tag komcp:latest registry.example.com/komcp:latest
+
+# Push to registry
+docker push registry.example.com/komcp:latest
+```
+
+See `docs/deployment-guide.md` for complete VPS deployment instructions with Nginx and SSL.
+
+---
+
 ## Usage
 
 ### Adding KOmcp to Claude

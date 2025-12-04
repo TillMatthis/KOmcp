@@ -1,17 +1,11 @@
 /**
- * Embedding generation service
+ * Embedding Service for KOmcp
  *
- * IMPORTANT: This service must use the SAME embedding model that Kura uses
- * to index notes. Otherwise, semantic search will not work correctly.
- *
- * Common embedding models:
- * - OpenAI text-embedding-3-small (1536 dimensions)
- * - OpenAI text-embedding-3-large (3072 dimensions)
- * - OpenAI text-embedding-ada-002 (1536 dimensions)
- * - Sentence Transformers (various dimensions)
- *
- * Configure the embedding provider based on your Kura setup.
+ * Generates vector embeddings for semantic search queries using OpenAI's API.
+ * Matches Kura's embedding configuration: text-embedding-3-small (512 dimensions)
  */
+
+import OpenAI from 'openai';
 
 /**
  * Custom error for embedding generation failures
@@ -24,68 +18,129 @@ export class EmbeddingError extends Error {
 }
 
 /**
- * Generate embedding vector for a text query
- *
- * This is a placeholder implementation. You must configure it to match
- * the embedding model used by Kura for indexing notes.
- *
- * @param text - Text to generate embedding for
- * @returns Vector embedding (array of numbers)
- * @throws {EmbeddingError} If embedding generation fails
- *
- * @example
- * // Using OpenAI (if Kura uses OpenAI embeddings)
- * const embedding = await generateEmbedding("machine learning algorithms");
- *
- * @example
- * // Using local model (if Kura uses local embeddings)
- * const embedding = await generateEmbedding("docker deployment guide");
+ * OpenAI client (singleton)
  */
-export async function generateEmbedding(text: string): Promise<number[]> {
-  // Validate input
-  if (!text || text.trim().length === 0) {
-    throw new EmbeddingError('Text cannot be empty');
+let openaiClient: OpenAI | null = null;
+
+/**
+ * Get or create OpenAI client
+ */
+function getOpenAIClient(): OpenAI {
+  if (!openaiClient) {
+    const apiKey = process.env['OPENAI_API_KEY'];
+
+    if (!apiKey) {
+      throw new EmbeddingError(
+        'OPENAI_API_KEY environment variable is not set. Please configure it in your .env file.'
+      );
+    }
+
+    openaiClient = new OpenAI({
+      apiKey,
+      maxRetries: 3,
+      timeout: 30000, // 30 second timeout
+    });
   }
 
+  return openaiClient;
+}
+
+/**
+ * Maximum text length for embedding (8000 characters)
+ * Matches Kura's configuration
+ */
+const MAX_TEXT_LENGTH = 8000;
+
+/**
+ * OpenAI embedding model
+ * Must match Kura's model: text-embedding-3-small
+ */
+const EMBEDDING_MODEL = 'text-embedding-3-small';
+
+/**
+ * Expected embedding dimensions for text-embedding-3-small
+ */
+const EXPECTED_DIMENSIONS = 512;
+
+/**
+ * Generate embedding vector for a text query
+ *
+ * Uses OpenAI's text-embedding-3-small model (512 dimensions) to match
+ * Kura's embedding configuration.
+ *
+ * Features:
+ * - Automatic text truncation to 8000 characters
+ * - Retry logic with exponential backoff (3 attempts)
+ * - Rate limit handling
+ *
+ * @param text - The text to generate an embedding for
+ * @returns Vector embedding as array of numbers (512 dimensions)
+ * @throws {EmbeddingError} If embedding generation fails after retries
+ */
+export async function generateEmbedding(text: string): Promise<number[]> {
+  if (!text || text.trim().length === 0) {
+    throw new EmbeddingError('Cannot generate embedding for empty text');
+  }
+
+  // Truncate text if too long (matches Kura's behavior)
+  const truncatedText =
+    text.length > MAX_TEXT_LENGTH ? text.substring(0, MAX_TEXT_LENGTH) : text;
+
   try {
-    // TODO: Replace with actual embedding generation
-    // This is a placeholder that returns a dummy embedding
-    //
-    // Implementation options:
-    //
-    // 1. OpenAI API:
-    //    const response = await openai.embeddings.create({
-    //      model: 'text-embedding-3-small',
-    //      input: text,
-    //    });
-    //    return response.data[0].embedding;
-    //
-    // 2. Local model (e.g., Sentence Transformers):
-    //    const embedding = await localModel.encode(text);
-    //    return Array.from(embedding);
-    //
-    // 3. External API:
-    //    const response = await fetch('https://embedding-api.example.com/embed', {
-    //      method: 'POST',
-    //      headers: { 'Content-Type': 'application/json' },
-    //      body: JSON.stringify({ text }),
-    //    });
-    //    const data = await response.json();
-    //    return data.embedding;
+    const client = getOpenAIClient();
 
-    // For now, throw an error to indicate this needs implementation
-    throw new EmbeddingError(
-      'Embedding generation not configured. Please implement generateEmbedding() ' +
-        'to match your Kura embedding model. See comments in src/services/embeddings.ts'
-    );
+    const response = await client.embeddings.create({
+      model: EMBEDDING_MODEL,
+      input: truncatedText,
+      encoding_format: 'float',
+    });
 
-    // Dummy return to satisfy TypeScript (unreachable due to throw above)
-    // return new Array(1536).fill(0);
+    if (!response.data || response.data.length === 0) {
+      throw new EmbeddingError('OpenAI API returned empty response');
+    }
+
+    const embedding = response.data[0]?.embedding;
+
+    if (!embedding) {
+      throw new EmbeddingError('OpenAI API returned undefined embedding');
+    }
+
+    // Verify embedding dimensions (should be 512 for text-embedding-3-small)
+    if (embedding.length !== EXPECTED_DIMENSIONS) {
+      throw new EmbeddingError(
+        `Unexpected embedding dimensions: expected ${EXPECTED_DIMENSIONS}, got ${embedding.length}`
+      );
+    }
+
+    return embedding;
   } catch (error) {
     if (error instanceof EmbeddingError) {
       throw error;
     }
-    throw new EmbeddingError('Failed to generate embedding', error);
+
+    // Handle OpenAI API errors
+    if (error && typeof error === 'object' && 'status' in error) {
+      const apiError = error as { status?: number; message?: string };
+
+      if (apiError.status === 429) {
+        throw new EmbeddingError(
+          'OpenAI API rate limit exceeded. Please try again later.',
+          error
+        );
+      }
+
+      if (apiError.status === 401) {
+        throw new EmbeddingError(
+          'Invalid OpenAI API key. Please check your OPENAI_API_KEY environment variable.',
+          error
+        );
+      }
+    }
+
+    throw new EmbeddingError(
+      `Failed to generate embedding: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      error
+    );
   }
 }
 
@@ -93,13 +148,56 @@ export async function generateEmbedding(text: string): Promise<number[]> {
  * Batch generate embeddings for multiple texts
  *
  * More efficient than calling generateEmbedding() multiple times
- * for some embedding providers (e.g., OpenAI batch API)
+ * Uses OpenAI's batch API when possible
  *
  * @param texts - Array of texts to generate embeddings for
  * @returns Array of vector embeddings
+ * @throws {EmbeddingError} If embedding generation fails
  */
 export async function generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
-  // TODO: Implement batch embedding generation for efficiency
-  // For now, generate one at a time
-  return Promise.all(texts.map((text) => generateEmbedding(text)));
+  if (!texts || texts.length === 0) {
+    return [];
+  }
+
+  try {
+    const client = getOpenAIClient();
+
+    // Truncate all texts
+    const truncatedTexts = texts.map((text) =>
+      text.length > MAX_TEXT_LENGTH ? text.substring(0, MAX_TEXT_LENGTH) : text
+    );
+
+    const response = await client.embeddings.create({
+      model: EMBEDDING_MODEL,
+      input: truncatedTexts,
+      encoding_format: 'float',
+    });
+
+    if (!response.data || response.data.length !== texts.length) {
+      throw new EmbeddingError(
+        `OpenAI API returned unexpected number of embeddings: expected ${texts.length}, got ${response.data?.length || 0}`
+      );
+    }
+
+    // Verify dimensions for all embeddings
+    const embeddings = response.data.map((item, index) => {
+      if (item.embedding.length !== EXPECTED_DIMENSIONS) {
+        throw new EmbeddingError(
+          `Embedding ${index} has unexpected dimensions: expected ${EXPECTED_DIMENSIONS}, got ${item.embedding.length}`
+        );
+      }
+      return item.embedding;
+    });
+
+    return embeddings;
+  } catch (error) {
+    if (error instanceof EmbeddingError) {
+      throw error;
+    }
+
+    throw new EmbeddingError(
+      `Failed to generate batch embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      error
+    );
+  }
 }
