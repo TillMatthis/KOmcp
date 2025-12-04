@@ -1,6 +1,6 @@
 # KOmcp
 
-**Remote MCP Server for Kura Notes Semantic Search**
+**Remote MCP Server for Kura Notes Management**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
@@ -10,7 +10,7 @@
 
 ## Overview
 
-KOmcp is a standalone remote MCP (Model Context Protocol) server that enables Claude and other LLM applications to securely access **Kura notes semantic search** functionality via OAuth2-authenticated API calls.
+KOmcp is a standalone remote MCP (Model Context Protocol) server that enables Claude and other LLM applications to securely **create, search, retrieve, and manage Kura notes** via OAuth2-authenticated API calls.
 
 ### What is MCP?
 
@@ -20,7 +20,8 @@ The [Model Context Protocol](https://modelcontextprotocol.io) (MCP) is an open s
 
 - ✅ **MCP Protocol Compliance:** Implements MCP specification (2025-06-18)
 - 🔒 **OAuth2 Authentication:** Integrates with KOauth for secure, token-based authentication
-- 🔍 **Semantic Search:** Leverages Kura's pgvector-powered semantic search
+- 🔍 **Semantic Search:** Leverages Kura's vector-powered semantic search
+- ✏️ **Full CRUD Operations:** Create, read, list, and delete notes via Kura API
 - 🚀 **Claude Web Connector:** Works seamlessly with Claude's custom connector feature
 - 🐳 **Docker Deployment:** Production-ready containerized deployment
 - 📊 **Type-Safe:** Built with TypeScript for reliability and maintainability
@@ -32,20 +33,20 @@ The [Model Context Protocol](https://modelcontextprotocol.io) (MCP) is an open s
 ```
 ┌─────────────┐         ┌──────────────┐         ┌─────────────┐         ┌─────────────┐
 │   Claude    │────────▶│    KOmcp     │────────▶│   KOauth    │         │    Kura     │
-│  (Web/App)  │  MCP    │  MCP Server  │  OAuth  │   OAuth2    │         │  Notes DB   │
-│             │◀────────│   (HTTP)     │  Token  │   Server    │         │ (Postgres)  │
+│  (Web/App)  │  MCP    │  MCP Server  │  OAuth  │   OAuth2    │         │   Notes     │
+│             │◀────────│   (HTTP)     │  Token  │   Server    │         │   API       │
 └─────────────┘         └──────────────┘  Valid  └─────────────┘         └─────────────┘
                                │                                                  │
                                └──────────────────────────────────────────────────┘
-                                        Read-Only Vector Search
+                                    Full API Access (Search, CRUD)
 ```
 
 ### Components
 
-1. **KOmcp (This Project):** MCP server exposing Kura search as a tool
+1. **KOmcp (This Project):** MCP server exposing Kura operations as MCP tools
 2. **KOauth:** OAuth2 server for authentication ([github.com/TillMatthis/KOauth](https://github.com/TillMatthis/KOauth))
-3. **Kura:** Note-taking application with semantic search
-4. **Claude:** LLM client that discovers and uses the search tool
+3. **Kura:** Note-taking application with semantic search and API
+4. **Claude:** LLM client that discovers and uses the tools
 
 ---
 
@@ -66,9 +67,8 @@ The [Model Context Protocol](https://modelcontextprotocol.io) (MCP) is an open s
 
 - **Node.js:** 20.x or higher
 - **npm:** 9.x or higher
-- **PostgreSQL:** 15+ with pgvector extension
 - **KOauth:** Running OAuth2 server with RFC 7591 (Dynamic Client Registration) support
-- **Kura:** Running Kura instance with notes indexed
+- **Kura:** Running Kura instance with API enabled
 - **Docker:** (optional) For containerized deployment
 
 ---
@@ -110,8 +110,8 @@ KOAUTH_URL=https://auth.example.com
 KOAUTH_JWKS_URL=https://auth.example.com/.well-known/jwks.json
 KOAUTH_CLIENT_REGISTRATION_URL=https://auth.example.com/oauth/register
 
-# Kura Database (Read-Only)
-KURA_DATABASE_URL=postgresql://komcp_readonly:password@localhost:5432/kura
+# Kura API
+KURA_URL=https://kura.tillmaessen.de
 
 # Security
 ALLOWED_ORIGINS=https://claude.ai
@@ -122,15 +122,7 @@ RATE_LIMIT_WINDOW_MS=60000
 LOG_LEVEL=info
 ```
 
-### 4. Set Up Database
-
-Generate Prisma client:
-
-```bash
-npx prisma generate
-```
-
-### 5. Start Development Server
+### 4. Start Development Server
 
 ```bash
 npm run dev
@@ -138,7 +130,7 @@ npm run dev
 
 Server will start on `http://localhost:3003`
 
-### 6. Verify Health
+### 5. Verify Health
 
 ```bash
 curl http://localhost:3003/health
@@ -229,50 +221,86 @@ See `docs/deployment-guide.md` for complete VPS deployment instructions with Ngi
 3. Click "Add Custom Connector"
 4. Enter your KOmcp server URL: `https://mcp.example.com`
 5. Complete OAuth2 authorization via KOauth
-6. Claude will discover the `search_kura_notes` tool
+6. Claude will discover all available Kura tools
 
 ### Using in Claude
 
-Once connected, you can ask Claude:
+Once connected, you can ask Claude to:
 
-> "Search my notes for information about machine learning"
+- **Search:** "Search my notes for information about machine learning"
+- **Create:** "Create a note about today's meeting with the team"
+- **View:** "Show me the full content of note xyz-123"
+- **List:** "What are my most recent notes?"
+- **Delete:** "Delete the note with ID abc-456"
 
-Claude will automatically use the `search_kura_notes` tool to search your Kura notes and provide results.
+Claude will automatically use the appropriate tools to manage your Kura notes.
 
 ### Available Tools
 
 #### `search_kura_notes`
 
-Search Kura notes using semantic similarity.
+Search Kura notes using semantic similarity. Finds notes that are conceptually related to the search query, even if they don't contain the exact keywords.
 
 **Parameters:**
 - `query` (string, required): Natural language search query
 - `limit` (number, optional): Maximum results (1-50, default: 10)
 - `min_similarity` (number, optional): Similarity threshold 0-1 (default: 0.7)
 
-**Returns:**
-- `results`: Array of matching notes with content and similarity scores
-- `total`: Number of results returned
-- `query_embedding_time_ms`: Time to generate query embedding
-- `search_time_ms`: Time to execute vector search
+**Example:**
+```
+Search for "docker deployment best practices"
+```
 
-**Example Response:**
-```json
-{
-  "results": [
-    {
-      "id": "note-123",
-      "title": "Introduction to Machine Learning",
-      "content": "Machine learning is a subset of AI...",
-      "similarity": 0.92,
-      "created_at": "2024-01-15T10:30:00Z",
-      "updated_at": "2024-02-20T14:45:00Z"
-    }
-  ],
-  "total": 1,
-  "query_embedding_time_ms": 45,
-  "search_time_ms": 12
-}
+#### `create_note`
+
+Create a new note in Kura with content, optional title, annotations, and tags.
+
+**Parameters:**
+- `content` (string, required): The note content (max 100,000 characters)
+- `title` (string, optional): Note title (auto-generated if not provided)
+- `annotation` (string, optional): Additional context or metadata
+- `tags` (array of strings, optional): Tags for organization
+- `contentType` (string, optional): Content type hint (default: "text")
+
+**Example:**
+```
+Create a note with content "Deploy using docker-compose up -d",
+title "Docker Deployment", and tags ["docker", "devops"]
+```
+
+#### `get_note`
+
+Retrieve the full content of a specific note by its ID.
+
+**Parameters:**
+- `note_id` (string, required): The unique ID of the note
+
+**Example:**
+```
+Get note with ID "abc-123-def-456"
+```
+
+#### `list_recent_notes`
+
+List the 20 most recently created or updated notes (summary view without full content).
+
+**Parameters:** None
+
+**Example:**
+```
+Show my recent notes
+```
+
+#### `delete_note`
+
+Permanently delete a note by its ID. This action cannot be undone.
+
+**Parameters:**
+- `note_id` (string, required): The unique ID of the note to delete
+
+**Example:**
+```
+Delete note with ID "abc-123-def-456"
 ```
 
 ---
@@ -416,7 +444,7 @@ See `.env.example` for all available configuration options.
 **Required:**
 - `KOAUTH_URL` - KOauth OAuth2 server URL
 - `KOAUTH_JWKS_URL` - JWKS endpoint for token verification
-- `KURA_DATABASE_URL` - PostgreSQL connection string (read-only user)
+- `KURA_URL` - Kura API base URL
 - `BASE_URL` - Public URL of this server
 
 **Optional:**
@@ -443,7 +471,9 @@ See `.env.example` for all available configuration options.
 
 - `mcp:tools:read` - List available tools
 - `mcp:tools:execute` - Execute tools
-- `kura:notes:search` - Search Kura notes
+- `kura:notes:read` - Read Kura notes (search, get, list)
+- `kura:notes:write` - Write Kura notes (create)
+- `kura:notes:delete` - Delete Kura notes
 
 ### Security Features
 
@@ -554,24 +584,28 @@ curl https://mcp.example.com/.well-known/oauth-protected-resource
 
 ## Roadmap
 
-### MVP (Phase 1) - Current
-- ✅ Single tool: `search_kura_notes`
+### Phase 1 - MVP ✅ Complete
 - ✅ OAuth2 token validation
 - ✅ Dynamic Client Registration
 - ✅ Docker deployment
+- ✅ `search_kura_notes` tool
 
-### Phase 2 - Write Operations
-- `create_note` tool
+### Phase 2 - Full API Integration ✅ Complete
+- ✅ `create_note` tool
+- ✅ `get_note` tool
+- ✅ `list_recent_notes` tool
+- ✅ `delete_note` tool
+- ✅ Kura API client integration
+
+### Phase 3 - Advanced Features (Planned)
 - `update_note` tool
-- `delete_note` tool
-
-### Phase 3 - Advanced Features
 - Real-time updates via SSE
 - MCP Resources (expose notes as resources)
 - MCP Prompts (templated queries)
+- Advanced search filters (tags, date ranges)
 - Caching layer (Redis)
 
-### Phase 4 - Operations
+### Phase 4 - Operations (Planned)
 - Monitoring dashboard
 - Usage analytics
 - Multi-region deployment
@@ -600,6 +634,6 @@ MIT License - See [LICENSE](./LICENSE) for details
 
 ---
 
-**Status:** 🚧 In Development (MVP Phase)
+**Status:** ✅ Phase 2 Complete - Full API Integration
 
-**Last Updated:** 2025-12-01
+**Last Updated:** 2025-12-04
