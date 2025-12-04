@@ -292,21 +292,23 @@ async function handleSearchKuraNotes(
       min_similarity: toolArgs.min_similarity,
     };
 
-    // Get user ID from authenticated request
-    const userId = (request as any).user?.userId;
-    if (!userId) {
-      request.log.error('User ID not found in authenticated request');
+    // Get access token from request header
+    const authHeader = request.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      request.log.error('Access token not found in request');
       return reply.status(500).send(
         createErrorResponse(
           rpcRequest.id,
           JsonRpcErrorCode.INTERNAL_ERROR,
-          'Internal server error: User ID not found'
+          'Internal server error: Access token not found'
         )
       );
     }
 
-    // Execute search
-    const result = await executeSearchNotes(userId, searchInput);
+    const accessToken = authHeader.substring(7); // Remove "Bearer " prefix
+
+    // Execute search (pass token to Kura API)
+    const result = await executeSearchNotes(accessToken, searchInput);
 
     // Return tool result
     return reply.send(createSuccessResponse(rpcRequest.id, result));
