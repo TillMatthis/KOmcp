@@ -28,6 +28,8 @@ model Note {
   updated_at DateTime @updatedAt @map("updated_at")
 
   @@index([user_id])
-  @@index([embedding], map: "notes_embedding_idx", type: Ivfflat)
+  // Note: Ivfflat index type is created directly in PostgreSQL via migrations
+  // Prisma doesn't support custom index types, so we omit the type here
+  @@index([embedding], map: "notes_embedding_idx")
   @@map("notes")
 }
