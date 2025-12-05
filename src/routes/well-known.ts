@@ -12,6 +12,8 @@ interface ProtectedResourceMetadata {
   resource: string;
   /** List of authorization server URLs that can issue tokens for this resource */
   authorization_servers: string[];
+  /** JWKS endpoint URL for token signature verification */
+  jwks_uri?: string;
   /** OAuth scopes supported by this resource server */
   scopes_supported: string[];
   /** Methods for presenting bearer tokens (only 'header' is supported) */
@@ -48,6 +50,7 @@ export async function wellKnownRoutes(server: FastifyInstance): Promise<void> {
                 type: 'array',
                 items: { type: 'string' },
               },
+              jwks_uri: { type: 'string' },
               scopes_supported: {
                 type: 'array',
                 items: { type: 'string' },
@@ -70,6 +73,7 @@ export async function wellKnownRoutes(server: FastifyInstance): Promise<void> {
       const metadata: ProtectedResourceMetadata = {
         resource: config.BASE_URL,
         authorization_servers: [config.KOAUTH_URL],
+        jwks_uri: config.KOAUTH_JWKS_URL,
         scopes_supported: [
           RequiredScope.TOOLS_READ,
           RequiredScope.TOOLS_EXECUTE,
