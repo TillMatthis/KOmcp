@@ -37,10 +37,6 @@ COPY package*.json ./
 # Copy source code
 COPY tsconfig.json ./
 COPY src ./src
-COPY prisma ./prisma
-
-# Generate Prisma client
-RUN npx prisma generate
 
 # Build TypeScript
 RUN npm run build
@@ -64,11 +60,7 @@ COPY --from=deps /prod_node_modules ./node_modules
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/package*.json ./
-
-# Copy Prisma schema (needed for migrations/introspection)
-COPY prisma ./prisma
 
 # Set ownership to nodejs user
 RUN chown -R nodejs:nodejs /app
