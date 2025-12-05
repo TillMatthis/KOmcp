@@ -73,7 +73,9 @@ export async function wellKnownRoutes(server: FastifyInstance): Promise<void> {
         scopes_supported: [
           RequiredScope.TOOLS_READ,
           RequiredScope.TOOLS_EXECUTE,
-          RequiredScope.KURA_NOTES_SEARCH,
+          RequiredScope.KURA_NOTES_READ,
+          RequiredScope.KURA_NOTES_WRITE,
+          RequiredScope.KURA_NOTES_DELETE,
         ],
         bearer_methods_supported: ['header'],
         resource_documentation: 'https://github.com/TillMatthis/KOmcp',

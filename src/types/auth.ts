@@ -42,8 +42,12 @@ export enum RequiredScope {
   TOOLS_READ = 'mcp:tools:read',
   /** Execute MCP tools */
   TOOLS_EXECUTE = 'mcp:tools:execute',
-  /** Search Kura notes */
-  KURA_NOTES_SEARCH = 'kura:notes:search',
+  /** Read Kura notes (search, get, list) */
+  KURA_NOTES_READ = 'kura:notes:read',
+  /** Write Kura notes (create) */
+  KURA_NOTES_WRITE = 'kura:notes:write',
+  /** Delete Kura notes */
+  KURA_NOTES_DELETE = 'kura:notes:delete',
 }
 
 /**
